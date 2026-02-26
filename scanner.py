@@ -1,39 +1,48 @@
 from scapy.all import ARP, Ether, srp
-from utils import get_hostname
+from utils import get_hostname, get_vendor
 from db_logger import logger
 import ipaddress
+import socket
 
 def run_network_scan(network):
-    print(f"\n[*] Avvio scansione ARP professionale su {network}...")
+    print(f"\n[*] Avvio scansione con riconoscimento Vendor su {network}...")
     scan_id = logger.log_scan_start(network)
-    found_hosts = []
+    found_hosts = {}
 
+    # --- FASE 1: ARP SCAN (MAC + Vendor) ---
     try:
-        # 1. Creiamo il pacchetto ARP (Who has IP?)
-        # Ether(dst="ff:ff:ff:ff:ff:ff") invia il pacchetto in broadcast a tutti
         arp_request = ARP(pdst=network)
         broadcast = Ether(dst="ff:ff:ff:ff:ff:ff")
         packet = broadcast / arp_request
-
-        # 2. Inviamo il pacchetto e aspettiamo le risposte
-        # timeout: quanto aspettare la risposta, inter: intervallo tra pacchetti
-        print("[*] Invio pacchetti ARP in corso...")
-        answered_list = srp(packet, timeout=2, verbose=False)[0]
+        answered_list = srp(packet, timeout=3, verbose=False, retry=2)[0]
 
         for element in answered_list:
             ip = element[1].psrc
-            mac = element[1].hwsrc # Possiamo anche loggare il MAC address se vogliamo!
+            mac = element[1].hwsrc.upper()
             
             name = get_hostname(ip)
+            vendor = get_vendor(mac) # Scopre la marca!
             
-            # Salvataggio nel database
-            host_id = logger.log_host_found(scan_id, ip, name)
+            host_id = logger.log_host_found(scan_id, ip, name, mac, vendor)
+            found_hosts[ip] = {'hostname': name, 'id': host_id}
             
-            found_hosts.append({'ip': ip, 'hostname': name, 'id': host_id})
-            print(f"[+] DISPOSITIVO TROVATO: {ip} | MAC: {mac} | Host: {name}")
-
+            print(f"[+] TROVATO: {ip} | {mac} | {vendor} ({name})")
+            
     except Exception as e:
-        print(f"[!] Errore durante la scansione Scapy: {e}")
-        print("[i] Assicurati di eseguire il terminale come AMMINISTRATORE.")
+        print(f"[!] Errore Scapy (Amministratore?): {e}")
 
-    return found_hosts
+    # --- FASE 2: TCP CHECK (Per i silenti) ---
+    print("[*] Ricerca dispositivi nascosti...")
+    for ip in ipaddress.IPv4Network(network):
+        addr = str(ip)
+        if addr not in found_hosts:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.1)
+            if s.connect_ex((addr, 80)) == 0:
+                name = get_hostname(addr)
+                host_id = logger.log_host_found(scan_id, addr, name, "Unknown", "Unknown")
+                found_hosts[addr] = {'hostname': name, 'id': host_id}
+                print(f"[+] TROVATO (TCP): {addr} - {name}")
+            s.close()
+
+    return list(found_hosts.items())

@@ -14,10 +14,11 @@ class DBLogger:
         conn.close()
         return last_id
 
-    def log_host_found(self, scan_id, ip, hostname):
+    def log_host_found(self, scan_id, ip, hostname, mac="Unknown", vendor="Unknown"):
         conn = self._connect()
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO hosts (scan_id, ip, hostname) VALUES (%s, %s, %s)", (scan_id, ip, hostname))
+        sql = "INSERT INTO hosts (scan_id, ip, hostname, mac_address, vendor) VALUES (%s, %s, %s, %s, %s)"
+        cursor.execute(sql, (scan_id, ip, hostname, mac, vendor))
         conn.commit()
         last_id = cursor.lastrowid
         conn.close()
