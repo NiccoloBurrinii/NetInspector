@@ -1,6 +1,7 @@
 import nmap
 import os
 import time
+import json
 from datetime import datetime
 
 class NetInspector:
@@ -39,42 +40,44 @@ class NetInspector:
         print(f"\n[*] Scansione completata. Trovati {len(found_hosts)} host attivi.")
         return found_hosts
 
+    import json
+import nmap
+
+class NetInspector:
+    def __init__(self):
+        self.nm = nmap.PortScanner()
+        self.services_db = self.load_services()
+
+    def load_services(self):
+        """Carica la lista dei servizi dal file JSON esterno"""
+        try:
+            with open('services.json', 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print("[!] Avviso: services.json non trovato. Uso descrizioni generiche.")
+            return {}
+
     def scan_ports(self, ip):
-        print(f"\n" + "="*50)
-        print(f" SCAN DETTAGLIATO PORTE: {ip}")
-        print("="*50)
-        
-        # -sV: Tenta di capire la versione del servizio (es. Apache 2.4)
-        # --version-intensity 0: Lo rende più veloce
-        self.nm.scan(ip, arguments='-sV --version-intensity 0')
+        print(f"\n[*] Analisi porte per: {ip}")
+        # Scansione rapida (-F) o range specifico
+        self.nm.scan(ip, arguments='-p1-1000 -sT')
         
         if ip not in self.nm.all_hosts():
-            print(f"[!] L'host {ip} non risponde. Potrebbe esserci un firewall.")
             return
 
         for proto in self.nm[ip].all_protocols():
-            print(f"\n--- Protocollo: {proto.upper()} ---")
-            
-            # Ordiniamo le porte numericamente
             ports = sorted(self.nm[ip][proto].keys())
             
-            print(f"{'PORTA':<8} | {'STATO':<10} | {'SERVIZIO':<15} | {'VERSIONE'}")
-            print("-" * 60)
+            print(f"\n{'PORTA':<8} | {'STATO':<10} | {'DESCRIZIONE'}")
+            print("-" * 50)
             
             for port in ports:
                 state = self.nm[ip][proto][port]['state']
                 
-                # Recuperiamo le informazioni sul servizio
-                service = self.nm[ip][proto][port]['name']
-                product = self.nm[ip][proto][port].get('product', 'N/D')
-                version = self.nm[ip][proto][port].get('version', '')
+                # Cerchiamo nel JSON usando la stringa della porta
+                description = self.services_db.get(str(port), "Servizio sconosciuto")
                 
-                # Formattiamo l'output
-                full_version = f"{product} {version}".strip() or "Sconosciuta"
-                
-                print(f"{port:<8} | {state:<10} | {service:<15} | {full_version}")
-
-    print("\n[*] Analisi completata.")
+                print(f"{port:<8} | {state:<10} | {description}")
 
     def monitor_host(self, ip):
         print(f"\n[*] Monitoraggio LIVE di {ip} (CTRL+C per fermare)...")
