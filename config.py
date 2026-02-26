@@ -8,4 +8,4 @@ DB_CONFIG = {
 
 # Impostazioni Scansione
 # Cambia in "192.168.0.0/24" se il tuo router ha quell'IP
-NETWORK_RANGE = "192.168.1.0/24"
+NETWORK_RANGE = "172.20.10.0/29"
