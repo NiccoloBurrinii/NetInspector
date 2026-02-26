@@ -40,22 +40,41 @@ class NetInspector:
         return found_hosts
 
     def scan_ports(self, ip):
-        print(f"\n[*] Analisi porte per {ip} (Top 100 ports)...")
-        # -F: scan veloce, -sV: rileva versione servizi
-        self.nm.scan(ip, arguments='-F -sV')
+        print(f"\n" + "="*50)
+        print(f" SCAN DETTAGLIATO PORTE: {ip}")
+        print("="*50)
+        
+        # -sV: Tenta di capire la versione del servizio (es. Apache 2.4)
+        # --version-intensity 0: Lo rende più veloce
+        self.nm.scan(ip, arguments='-sV --version-intensity 0')
         
         if ip not in self.nm.all_hosts():
-            print("[!] L'host non risponde o è protetto da firewall.")
+            print(f"[!] L'host {ip} non risponde. Potrebbe esserci un firewall.")
             return
 
         for proto in self.nm[ip].all_protocols():
-            print(f"\nProtocollo: {proto.upper()}")
-            ports = self.nm[ip][proto].keys()
+            print(f"\n--- Protocollo: {proto.upper()} ---")
+            
+            # Ordiniamo le porte numericamente
+            ports = sorted(self.nm[ip][proto].keys())
+            
+            print(f"{'PORTA':<8} | {'STATO':<10} | {'SERVIZIO':<15} | {'VERSIONE'}")
+            print("-" * 60)
+            
             for port in ports:
                 state = self.nm[ip][proto][port]['state']
+                
+                # Recuperiamo le informazioni sul servizio
                 service = self.nm[ip][proto][port]['name']
-                product = self.nm[ip][proto][port].get('product', '')
-                print(f"  > Porta {port}: {state} | Servizio: {service} {product}")
+                product = self.nm[ip][proto][port].get('product', 'N/D')
+                version = self.nm[ip][proto][port].get('version', '')
+                
+                # Formattiamo l'output
+                full_version = f"{product} {version}".strip() or "Sconosciuta"
+                
+                print(f"{port:<8} | {state:<10} | {service:<15} | {full_version}")
+
+    print("\n[*] Analisi completata.")
 
     def monitor_host(self, ip):
         print(f"\n[*] Monitoraggio LIVE di {ip} (CTRL+C per fermare)...")
