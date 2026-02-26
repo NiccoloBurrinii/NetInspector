@@ -74,7 +74,7 @@ class NetInspector:
                 
                 print(f"{port:<8} | {state:<10} | {service:<15} | {full_version}")
 
-    print("\n[*] Analisi completata.")
+        print("\n[*] Analisi completata.")
 
     def monitor_host(self, ip):
         print(f"\n[*] Monitoraggio LIVE di {ip} (CTRL+C per fermare)...")
