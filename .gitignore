@@ -1,0 +1,21 @@
+# Python - File compilati e cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Ambienti Virtuali (se ne usi uno)
+venv/
+env/
+.env
+
+# VS Code - Impostazioni locali
+.vscode/
+
+# Nmap / Output temporanei
+*.log
+report_*.txt
+
+# Sistema Operativo
+.DS_Store
+Thumbs.db
