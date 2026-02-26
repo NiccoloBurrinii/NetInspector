@@ -3,6 +3,7 @@ from config import NETWORK_RANGE
 
 def main():
     inspector = NetInspector()
+    print(f"[*] Rete rilevata automaticamente: {NETWORK_RANGE}")
     
     while True:
         print("\n" + "="*30)
