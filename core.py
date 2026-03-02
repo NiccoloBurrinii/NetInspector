@@ -124,25 +124,88 @@ class NetInspector:
         except KeyboardInterrupt:
             print("\n[*] Monitoraggio terminato.")
 
-    def run_speedtest(self):
-        print("[*] Avvio Speed Test (potrebbe richiedere un minuto)...")
+    def run_speedtestt(self):   #
+        print("\n[*] Preparazione Speed Test in corso...")
         try:
-            # Aggiungiamo secure=True per evitare blocchi HTTP
-            st = speedtest.Speedtest(secure=True) 
+            st = speedtest.Speedtest(secure=True)
+            print("[*] Ricerca del miglior server disponibile...")
             st.get_best_server()
             
-            download = st.download() / 1_000_000  # Mbps
-            upload = st.upload() / 1_000_000      # Mbps
+            def display_progress(status_msg):
+                print(f"\r[ℹ] {status_msg}...", end="", flush=True)
+
+            display_progress("Test DOWNLOAD in corso")
+            download = st.download() / 1_000_000
+            
+            display_progress("Test UPLOAD in corso  ")
+            upload = st.upload() / 1_000_000
+            
             ping = st.results.ping
 
-            print(f"\n[+] RISULTATI:")
-            print(f" > Download: {download:.2f} Mbps")
-            print(f" > Upload: {upload:.2f} Mbps")
-            print(f" > Ping: {ping} ms")
+            print("\r" + " " * 50 + "\r", end="") 
+            print(f"Speed Test Completato!")
+            print(f"\n" + "═"*30)
+            print(f" -DOWNLOAD: {download:.2f} Mbps")
+            print(f" -UPLOAD:   {upload:.2f} Mbps")
+            print(f" -PING:     {ping:.1f} ms")
+            print("═"*30)
 
         except Exception as e:
-            print(f"[!] Errore durante lo Speedtest: {e}")
-            print("[i] Consiglio: Prova a fare 'pip install --upgrade speedtest-cli'")
+            print(f"\n[!] Errore durante lo Speedtest: {e}")
+
+    def run_speedtest(self):    #migliorata con barra di progresso e risultati più chiari
+        import sys
+
+        def draw_progress_bar(percent, label=""):
+            """Disegna una barra di caricamento professionale in console"""
+            bar_length = 30
+            filled_length = int(round(bar_length * percent / 100))
+            bar = '█' * filled_length + '-' * (bar_length - filled_length)
+            sys.stdout.write(f'\r[*] {label:15} |{bar}| {percent:>3}%')
+            sys.stdout.flush()
+
+        print("\n" + "═"*50 + "\n   AVVIO SPEED TEST INTERATTIVO\n" + "═"*50)
+        
+        try:
+            st = speedtest.Speedtest(secure=True)
+            
+            # Step 1: Server
+            draw_progress_bar(10, "Ricerca Server")
+            st.get_best_server()
+            draw_progress_bar(25, "Server Trovato")
+            time.sleep(0.5)
+
+            # Step 2: Download
+            # Simuliamo l'avanzamento durante l'inizio del test
+            for i in range(26, 45): 
+                draw_progress_bar(i, "Test Download")
+                time.sleep(0.05)
+            
+            download = st.download() / 1_000_000
+            draw_progress_bar(60, "Download OK")
+
+            # Step 3: Upload
+            for i in range(61, 85):
+                draw_progress_bar(i, "Test Upload")
+                time.sleep(0.05)
+
+            upload = st.upload() / 1_000_000
+            draw_progress_bar(100, "Completato!")
+            
+            ping = st.results.ping
+
+            # Risultati Finali
+            print(f"\n\n" + "📊 RISULTATI FINALI:")
+            print(f" > DOWNLOAD: {download:.2f} Mbps")
+            print(f" > UPLOAD:   {upload:.2f} Mbps")
+            print(f" > PING:     {ping:.1f} ms")
+            print("═"*50 + "\n")
+
+            # Log
+            self.log_event("SPEEDTEST", f"DL: {download:.2f} Mbps | UL: {upload:.2f} Mbps | Ping: {ping}ms")
+
+        except Exception as e:
+            print(f"\n[!] Errore: {e}")
 
     def detect_arp_spoofing(self):
         print("\n" + "!"*10 + " SECURITY CHECK: ARP SPOOFING " + "!"*10)
@@ -155,7 +218,6 @@ class NetInspector:
             if 'addresses' in self.nm[ip] and 'mac' in self.nm[ip]['addresses']:
                 mac = self.nm[ip]['addresses']['mac']
                 
-                # Se il MAC è già nel database ma con un IP diverso...
                 if mac in mac_database and mac_database[mac] != ip:
                     print(f"\n[🚨 ALERT] POSSIBILE ATTACCO MITM RILEVATO!")
                     print(f" > Il MAC Address [{mac}] è associato a due IP:")
