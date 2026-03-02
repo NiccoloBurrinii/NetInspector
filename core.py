@@ -1,6 +1,9 @@
 import nmap
 import os
 import time
+import subprocess
+import platform
+import speedtest
 from datetime import datetime
 
 class NetInspector:
@@ -92,3 +95,60 @@ class NetInspector:
                 time.sleep(3)
         except KeyboardInterrupt:
             print("\n[*] Monitoraggio terminato.")
+
+    def ping_test(self, ip, count=4):
+        """Esegue un ping test dettagliato e restituisce statistiche"""
+        print(f"[*] Ping test su {ip} ({count} pacchetti)...")
+        
+        # Determina il parametro in base all'OS
+        param = "-n" if platform.system().lower() == "windows" else "-c"
+        command = ["ping", param, str(count), ip]
+        
+        try:
+            output = subprocess.check_output(command, stderr=subprocess.STDOUT, universal_newlines=True)
+            
+            # Logica semplice per estrarre la latenza (MS) dall'output
+            if "media" in output or "avg" in output:
+                print(f"[+] Risultato:\n{output}")
+                return True
+            else:
+                print("[!] L'host non ha risposto a tutti i pacchetti.")
+                return False
+        except subprocess.CalledProcessError:
+            print(f"[!] Errore: Impossibile raggiungere {ip}.")
+            return False
+
+    def generate_report(self):
+        """Crea un file TXT con il riepilogo dell'ultima scansione o dei dati nel DB"""
+        filename = f"report_network_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        
+        # Qui potresti recuperare i dati dal Database invece che ricanalizzare
+        try:
+            with open(filename, "w") as f:
+                f.write("="*40 + "\n")
+                f.write(f" NETINSPECTOR - REPORT AUTOMATICO\n")
+                f.write(f" Data: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
+                f.write("="*40 + "\n\n")
+                
+                # Se il DB è collegato, qui faremmo una SELECT
+                f.write("[+] SUGGERIMENTI DI SICUREZZA:\n")
+                f.write("- Chiudi la porta 21 (FTP) se non necessaria.\n")
+                f.write("- Assicurati che SSH (22) usi chiavi e non password.\n")
+                
+            print(f"[+] Report generato con successo: {filename}")
+        except Exception as e:
+            print(f"[!] Errore generazione report: {e}")
+
+    def run_speedtest(self):
+        print("[*] Avvio Speed Test (potrebbe richiedere un minuto)...")
+        st = speedtest.Speedtest()
+        st.get_best_server()
+        
+        download = st.download() / 1_000_000  # Mbps
+        upload = st.upload() / 1_000_000      # Mbps
+        ping = st.results.ping
+        
+        print(f"\n[+] RISULTATI:")
+        print(f" > Download: {download:.2f} Mbps")
+        print(f" > Upload: {upload:.2f} Mbps")
+        print(f" > Ping: {ping} ms")
