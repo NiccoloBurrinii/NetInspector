@@ -28,10 +28,3 @@ def get_real_network_range():
 # Ora NETWORK_RANGE è dinamico e preciso al 100%
 NETWORK_RANGE = get_real_network_range()
 
-# Impostazioni Database (opzionali)
-DB_CONFIG = {
-    'host': '127.0.0.1',
-    'user': 'netuser',
-    'password': 'password123',
-    'database': 'netinspector'
-}
