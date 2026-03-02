@@ -1,9 +1,23 @@
+import threading
+
 from core import NetInspector
 from config import NETWORK_RANGE
 
 def main():
     inspector = NetInspector()
     print(f"[*] Rete rilevata: {NETWORK_RANGE}")
+
+    # --- AVVIO MONITORAGGIO SILENZIOSO IN BACKGROUND ---
+    # Creiamo il "motore" che gira nell'ombra
+    monitor_thread = threading.Thread(
+        target=inspector.live_network_monitor, 
+        args=(NETWORK_RANGE, 15), # Controlla ogni 15 secondi
+        daemon=True # Si chiude automaticamente quando esci dal programma
+    )
+    monitor_thread.start()
+    
+    print(f"[*] SISTEMA DI MONITORAGGIO ATTIVATO [OK]")
+    print(f"[*] I log vengono salvati in tempo reale in: network_events.log")
     
     while True:
         print("\n" + "="*30)
@@ -14,8 +28,9 @@ def main():
         print("3. Scansione Porte (Service Detection)")
         print("4. Speed Test (Internet Performance)")
         print("5. Monitoraggio Host (Real-time)")
-        print("6. Genera Report Finale (da implementare)")
-        print("7. Security Check (ARP Spoofing Detector)")
+        print("6. Monitoraggio Traffico)")
+        print("7. Genera Report Finale (da implementare)")
+        print("8. Security Check (ARP Spoofing Detector)")
         print("0. Esci")
         
         choice = input("\nScegli un'opzione: ")
@@ -34,8 +49,8 @@ def main():
             ip = input("Inserisci l'IP da monitorare: ")
             inspector.monitor_host(ip)
         elif choice == '6':
-            print("[*] Funzione di generazione report non ancora implementata.")
-        elif choice == '7':
+            inspector.live_network_monitor(NETWORK_RANGE, interval=5)    
+        elif choice == '8':
             inspector.detect_arp_spoofing()
         elif choice == '0':
             print("Chiusura...")

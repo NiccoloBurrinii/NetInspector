@@ -78,6 +78,9 @@ class NetInspector:
                 
                 print(f"{port:<8} | {state:<10} | {service:<15} | {full_version}")
 
+            res_log = f" > Target: {ip}\n > Risultato: Scansione porte completata."
+            self.log_event("PORT SCAN", res_log)
+
         print("\n[*] Analisi completata.")
 
     def monitor_host(self, ip):
@@ -126,26 +129,16 @@ class NetInspector:
             print(f"[!] Errore tecnico durante il ping: {e}")
             return False
 
-    def generate_report(self):
-        """Crea un file TXT con il riepilogo dell'ultima scansione o dei dati nel DB"""
-        filename = f"report_network_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    def log_event(self, category, message):
+        """Scrive qualsiasi tipo di evento nel log con Categoria e Timestamp"""
+        timestamp = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        log_entry = f"[{category}] {timestamp}\n{message}\n" + "-"*40 + "\n"
         
-        # Qui potresti recuperare i dati dal Database invece che ricanalizzare
         try:
-            with open(filename, "w") as f:
-                f.write("="*40 + "\n")
-                f.write(f" NETINSPECTOR - REPORT AUTOMATICO\n")
-                f.write(f" Data: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
-                f.write("="*40 + "\n\n")
-                
-                # Se il DB è collegato, qui faremmo una SELECT
-                f.write("[+] SUGGERIMENTI DI SICUREZZA:\n")
-                f.write("- Chiudi la porta 21 (FTP) se non necessaria.\n")
-                f.write("- Assicurati che SSH (22) usi chiavi e non password.\n")
-                
-            print(f"[+] Report generato con successo: {filename}")
+            with open("network_events.log", "a", encoding="utf-8") as f:
+                f.write(log_entry)
         except Exception as e:
-            print(f"[!] Errore generazione report: {e}")
+            print(f"[!] Errore salvataggio log: {e}")
 
     def run_speedtest(self):
         print("[*] Avvio Speed Test (potrebbe richiedere un minuto)...")
@@ -155,6 +148,9 @@ class NetInspector:
         download = st.download() / 1_000_000  # Mbps
         upload = st.upload() / 1_000_000      # Mbps
         ping = st.results.ping
+
+        speed_log = f" > Download: {download:.2f} Mbps\n > Upload: {upload:.2f} Mbps\n > Ping: {ping} ms"
+        self.log_event("SPEED TEST", speed_log)
         
         print(f"\n[+] RISULTATI:")
         print(f" > Download: {download:.2f} Mbps")
@@ -186,5 +182,49 @@ class NetInspector:
         if not alerts_found:
             print("[✓] Nessun conflitto ARP rilevato. La tabella dei MAC è coerente.")
         
+        mitm_log = f"🚨 ATTENZIONE: Rilevato conflitto MAC su {mac}!\n > IP coinvolti: {ip1}, {ip2}"
+        self.log_event("SECURITY ALERT", mitm_log)
+
         print("!"*50)
         return alerts_found
+    
+    def live_network_monitor(self, network_range, interval=15):
+        """Funzione che gira in background e logga tutto"""
+        # Baseline iniziale
+        self.nm.scan(hosts=network_range, arguments='-sn -PR')
+        known_devices = {host: (self.nm[host].hostname() or "Sconosciuto") 
+                         for host in self.nm.all_hosts()}
+
+        try:
+            while True:
+                time.sleep(interval)
+                self.nm.scan(hosts=network_range, arguments='-sn -PR')
+                current_hosts = self.nm.all_hosts()
+                
+                # --- LOGICA NUOVI ACCESSI ---
+                for ip in current_hosts:
+                    if ip not in known_devices:
+                        mac = self.nm[ip].get('addresses', {}).get('mac', 'N/A')
+                        hostname = self.nm[ip].hostname() or "Sconosciuto"
+                        vendor = self.nm[ip].get('vendor', {}).get(mac, "Generico")
+                        
+                        event_msg = (f"[🟢 ONLINE] IP: {ip} | MAC: {mac}\n"
+                                     f" > Hostname: {hostname} | Vendor: {vendor}")
+                        
+                        # Scrive nel file senza interrompere il tuo menu
+                        self.log_event("BACKGROUND MONITOR", event_msg)
+                        known_devices[ip] = hostname
+
+                # --- LOGICA DISCONNESSIONI ---
+                to_remove = []
+                for ip, name in known_devices.items():
+                    if ip not in current_hosts:
+                        event_msg = f"[🔴 OFFLINE] IP: {ip} ({name}) è uscito dalla rete."
+                        self.log_event("BACKGROUND MONITOR", event_msg)
+                        to_remove.append(ip)
+                
+                for ip in to_remove:
+                    del known_devices[ip]
+
+        except Exception as e:
+            self.log_event("ERRORE MONITOR", str(e))
