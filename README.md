@@ -1,29 +1,36 @@
-# 🛡️ NetInspector Pro
+# 🛡️ NetInspector: Network Security & Monitoring Tool
 
-**NetInspector Pro** è uno strumento di analisi di rete sviluppato in Python. Permette di effettuare il discovery dei dispositivi attivi, la scansione dettagliata delle porte (Service Detection) e il monitoraggio in tempo reale degli host.
-
-Il software è progettato per adattarsi automaticamente alla rete a cui è connesso, rilevando IP e Netmask senza configurazione manuale.
+**NetInspector** è una soluzione avanzata per la sicurezza e l'analisi di rete sviluppata in Python. Il software combina strumenti di scansione passiva e attiva con un sistema di monitoraggio in tempo reale (IDS) per la protezione dei perimetri domestici e aziendali.
 
 ---
 
-## 🚀 Caratteristiche Principali
+## Caratteristiche Principali
 
-* **Network Discovery Automatico**: Rileva l'interfaccia di rete attiva e calcola il range di scansione (CIDR) tramite l'IP e la Subnet Mask del sistema.
-* **Port Scanning Intelligente**: Identifica le porte aperte e i servizi associati utilizzando il motore `Nmap`.
-* **Rilevamento Anomalie**: Confronta i servizi rilevati con un database standard (`services.json`) per segnalare potenziali camuffamenti (es. un database sulla porta 80).
-* **Live Monitoring**: Funzione di monitoraggio continuo dello stato Online/Offline di un host specifico.
-* **Modularità**: Architettura divisa in `config`, `core` e `main` per una facile manutenzione.
+### 1. Monitoraggio Live Multi-finestra
+Il tool utilizza il **Multithreading** per avviare una console separata che monitora costantemente gli accessi alla rete. Ogni volta che un dispositivo entra o esce dalla rete, l'evento viene visualizzato in diretta.
+
+### 2. Logging Forense (Audit Trail)
+Ogni azione, scansione e rilevamento viene salvata nel file `network_events.log`. La gestione dei file è ottimizzata con `fsync` per garantire la persistenza dei dati anche in caso di crash improvviso.
+
+### 3. Network & Port Scanning
+- **Network Discovery:** Identifica IP, Hostname, MAC Address e Vendor dei dispositivi connessi.
+- **Port Analysis:** Scansiona le porte aperte e tenta di identificare la versione dei servizi (Banner Grabbing) per trovare vulnerabilità.
+
+### 4. Security Check (ARP Spoofing)
+Analizza la tabella ARP alla ricerca di conflitti MAC-IP, segnalando potenziali attacchi **Man-In-The-Middle (MITM)**.
+
+### 5. Performance Test
+Integrazione con i server Ookla per misurare la velocità di Download, Upload e la latenza (Ping) della connessione.
 
 ---
 
-## 🛠️ Requisiti Installazione
+## Requisiti Tecnici
 
-### 1. Requisito di Sistema
-Il software richiede **Nmap** installato nel sistema operativo.
-* Scarica Nmap da: [https://nmap.org/download.html](https://nmap.org/download.html)
-* *Nota: Durante l'installazione su Windows, assicurati di spuntare la voce "Add Nmap to the system PATH".*
+### Software Necessario
+* **Python 3.10+**
+* **Nmap (Binary):** Il motore Nmap deve essere installato sul sistema e configurato nelle variabili d'ambiente (PATH).
 
-### 2. Librerie Python
-Installa le dipendenze necessarie tramite terminale:
+### Installazione Dipendenze
+Installa le librerie Python necessarie tramite il file requirements:
 ```bash
-pip install python-nmap psutil
+pip install -r requirements.txt
