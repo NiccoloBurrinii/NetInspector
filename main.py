@@ -33,12 +33,12 @@ def main():
         
         while True:
             print("\n" + "="*30)
-            print("      NETINSPECTOR PRO")
+            print("      NETINSPECTOR      ")
             print("="*30)
-            print("1. Scansione Rete (Discovery)")
-            print("2. Ping Test (Latenza/Stato)")
-            print("3. Scansione Porte (Service Detection)")
-            print("4. Speed Test (Internet Performance)")
+            print("1. Scansione Rete")
+            print("2. Ping Test")
+            print("3. Scansione Porte")
+            print("4. Speed Test")
             print("5. Monitoraggio Host (Real-time)")
             print("6. Security Check (ARP Spoofing Detector)")
             print("0. Esci")
