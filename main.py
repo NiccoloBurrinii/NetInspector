@@ -15,6 +15,7 @@ def main():
         print("4. Speed Test (Internet Performance)")
         print("5. Monitoraggio Host (Real-time)")
         print("6. Genera Report Finale (da implementare)")
+        print("7. Security Check (ARP Spoofing Detector)")
         print("0. Esci")
         
         choice = input("\nScegli un'opzione: ")
@@ -32,6 +33,10 @@ def main():
         elif choice == '5':
             ip = input("Inserisci l'IP da monitorare: ")
             inspector.monitor_host(ip)
+        elif choice == '6':
+            print("[*] Funzione di generazione report non ancora implementata.")
+        elif choice == '7':
+            inspector.detect_arp_spoofing()
         elif choice == '0':
             print("Chiusura...")
             break

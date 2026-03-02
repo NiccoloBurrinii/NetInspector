@@ -17,30 +17,31 @@ class NetInspector:
             print("[i] Assicurati che Nmap sia installato nel sistema.")
 
     def scan_network(self, network_range):
-        print(f"\n[*] Scansione in corso su {network_range}...")
-        # -sn: Ping scan (Host discovery)
-        self.nm.scan(hosts=network_range, arguments='-sn')
+        print(f"[*] Scansione della rete {network_range} in corso...")
+        # -sn: Ping scan (discovery)
+        # -PR: ARP discovery (il modo più veloce per avere i MAC in LAN)
+        self.nm.scan(hosts=network_range, arguments='-sn -PR')
         
-        found_hosts = []
-        print(f"{'IP ADDRESS':<15} | {'HOSTNAME':<20} | {'VENDOR'}")
-        print("-" * 50)
-        
+        print(f"\n{'IP':<15} | {'HOSTNAME':<20} | {'MAC ADDRESS':<18} | {'VENDOR'}")
+        print("-" * 75)
+
         for host in self.nm.all_hosts():
             ip = host
-            hostname = self.nm[host].hostname() or "Unknown"
+            hostname = self.nm[host].hostname() if self.nm[host].hostname() else "Sconosciuto"
             
-            # Recupero MAC e Vendor (solo se lanciato come admin)
-            mac = "Unknown"
-            vendor = "Unknown"
-            if 'addresses' in self.nm[host] and 'mac' in self.nm[host]['addresses']:
-                mac = self.nm[host]['addresses']['mac']
-                vendor = self.nm[host].get('vendor', {}).get(mac, "Unknown")
+            # Recupero MAC e Vendor
+            mac = "Non rilevato"
+            vendor = "Sconosciuto"
+            
+            if 'addresses' in self.nm[host]:
+                addrs = self.nm[host]['addresses']
+                # Nmap mette il MAC dentro il dizionario 'mac' se lo trova
+                if 'mac' in addrs:
+                    mac = addrs['mac']
+                    # Se trova il MAC, Nmap prova a cercare il Vendor nel suo database
+                    vendor = self.nm[host].get('vendor', {}).get(mac, "Vendor Generico")
 
-            print(f"{ip:<15} | {hostname:<20} | {vendor}")
-            found_hosts.append(ip)
-            
-        print(f"\n[*] Scansione completata. Trovati {len(found_hosts)} host attivi.")
-        return found_hosts
+            print(f"{ip:<15} | {hostname:<20} | {mac:<18} | {vendor}")
 
     def scan_ports(self, ip):
         print(f"\n" + "="*50)
@@ -159,3 +160,31 @@ class NetInspector:
         print(f" > Download: {download:.2f} Mbps")
         print(f" > Upload: {upload:.2f} Mbps")
         print(f" > Ping: {ping} ms")
+
+    def detect_arp_spoofing(self):
+        print("\n" + "!"*10 + " SECURITY CHECK: ARP SPOOFING " + "!"*10)
+        
+        hosts = self.nm.all_hosts()
+        mac_database = {} # Dizionario {MAC: IP}
+        alerts_found = False
+
+        for ip in hosts:
+            if 'addresses' in self.nm[ip] and 'mac' in self.nm[ip]['addresses']:
+                mac = self.nm[ip]['addresses']['mac']
+                
+                # Se il MAC è già nel database ma con un IP diverso...
+                if mac in mac_database and mac_database[mac] != ip:
+                    print(f"\n[🚨 ALERT] POSSIBILE ATTACCO MITM RILEVATO!")
+                    print(f" > Il MAC Address [{mac}] è associato a due IP:")
+                    print(f"   1. {mac_database[mac]}")
+                    print(f"   2. {ip}")
+                    print(f" [!] Qualcuno sta eseguendo ARP Poisoning nella rete.")
+                    alerts_found = True
+                else:
+                    mac_database[mac] = ip
+        
+        if not alerts_found:
+            print("[✓] Nessun conflitto ARP rilevato. La tabella dei MAC è coerente.")
+        
+        print("!"*50)
+        return alerts_found
