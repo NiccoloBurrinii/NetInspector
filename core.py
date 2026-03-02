@@ -97,25 +97,32 @@ class NetInspector:
             print("\n[*] Monitoraggio terminato.")
 
     def ping_test(self, ip, count=4):
-        """Esegue un ping test dettagliato e restituisce statistiche"""
-        print(f"[*] Ping test su {ip} ({count} pacchetti)...")
+        print(f"[*] Ping test su {ip}...")
         
-        # Determina il parametro in base all'OS
+        # Determina il parametro corretto (-n su Windows, -c su Linux/Mac)
         param = "-n" if platform.system().lower() == "windows" else "-c"
+        
+        # Costruiamo il comando come una lista per evitare errori di shell
         command = ["ping", param, str(count), ip]
         
         try:
-            output = subprocess.check_output(command, stderr=subprocess.STDOUT, universal_newlines=True)
+            # shell=True aiuta Python a trovare il comando 'ping' nelle variabili d'ambiente di Windows
+            processo = subprocess.run(command, capture_output=True, text=True, shell=True)
             
-            # Logica semplice per estrarre la latenza (MS) dall'output
-            if "media" in output or "avg" in output:
-                print(f"[+] Risultato:\n{output}")
+            if processo.returncode == 0:
+                print(f"[+] Risposta ricevuta da {ip}:")
+                # Estraiamo solo le righe con i tempi (ms) per pulire l'output
+                linee = processo.stdout.splitlines()
+                for linea in linee:
+                    if "ms" in linea.lower():
+                        print(f"    {linea.strip()}")
                 return True
             else:
-                print("[!] L'host non ha risposto a tutti i pacchetti.")
+                print(f"[!] L'host {ip} non risponde (Richiesta scaduta).")
                 return False
-        except subprocess.CalledProcessError:
-            print(f"[!] Errore: Impossibile raggiungere {ip}.")
+                
+        except Exception as e:
+            print(f"[!] Errore tecnico durante il ping: {e}")
             return False
 
     def generate_report(self):
