@@ -1,6 +1,9 @@
 import nmap
 import os
 import time
+import subprocess
+import platform
+import speedtest
 from datetime import datetime
 
 class NetInspector:
@@ -8,36 +11,38 @@ class NetInspector:
         try:
             # Inizializza il PortScanner di Nmap
             self.nm = nmap.PortScanner()
+            self.log_file = "network_events.log"
             print("[*] Motore Nmap inizializzato con successo.")
         except Exception as e:
             print(f"[!] Errore inizializzazione Nmap: {e}")
             print("[i] Assicurati che Nmap sia installato nel sistema.")
 
     def scan_network(self, network_range):
-        print(f"\n[*] Scansione in corso su {network_range}...")
-        # -sn: Ping scan (Host discovery)
-        self.nm.scan(hosts=network_range, arguments='-sn')
+        print(f"[*] Scansione della rete {network_range} in corso...")
+        # -sn: Ping scan (discovery)
+        # -PR: ARP discovery (il modo più veloce per avere i MAC in LAN)
+        self.nm.scan(hosts=network_range, arguments='-sn -PR')
         
-        found_hosts = []
-        print(f"{'IP ADDRESS':<15} | {'HOSTNAME':<20} | {'VENDOR'}")
-        print("-" * 50)
-        
+        print(f"\n{'IP':<15} | {'HOSTNAME':<20} | {'MAC ADDRESS':<18} | {'VENDOR'}")
+        print("-" * 75)
+
         for host in self.nm.all_hosts():
             ip = host
-            hostname = self.nm[host].hostname() or "Unknown"
+            hostname = self.nm[host].hostname() if self.nm[host].hostname() else "Sconosciuto"
             
-            # Recupero MAC e Vendor (solo se lanciato come admin)
-            mac = "Unknown"
-            vendor = "Unknown"
-            if 'addresses' in self.nm[host] and 'mac' in self.nm[host]['addresses']:
-                mac = self.nm[host]['addresses']['mac']
-                vendor = self.nm[host].get('vendor', {}).get(mac, "Unknown")
+            # Recupero MAC e Vendor
+            mac = "Non rilevato"
+            vendor = "Sconosciuto"
+            
+            if 'addresses' in self.nm[host]:
+                addrs = self.nm[host]['addresses']
+                # Nmap mette il MAC dentro il dizionario 'mac' se lo trova
+                if 'mac' in addrs:
+                    mac = addrs['mac']
+                    # Se trova il MAC, Nmap prova a cercare il Vendor nel suo database
+                    vendor = self.nm[host].get('vendor', {}).get(mac, "Vendor Generico")
 
-            print(f"{ip:<15} | {hostname:<20} | {vendor}")
-            found_hosts.append(ip)
-            
-        print(f"\n[*] Scansione completata. Trovati {len(found_hosts)} host attivi.")
-        return found_hosts
+            print(f"{ip:<15} | {hostname:<20} | {mac:<18} | {vendor}")
 
     def scan_ports(self, ip):
         print(f"\n" + "="*50)
@@ -74,6 +79,7 @@ class NetInspector:
                 
                 print(f"{port:<8} | {state:<10} | {service:<15} | {full_version}")
 
+
         print("\n[*] Analisi completata.")
 
     def monitor_host(self, ip):
@@ -92,3 +98,154 @@ class NetInspector:
                 time.sleep(3)
         except KeyboardInterrupt:
             print("\n[*] Monitoraggio terminato.")
+
+    def ping_test(self, ip, count=4):
+        print(f"[*] Ping test su {ip}...")
+        
+        # Determina il parametro corretto (-n su Windows, -c su Linux/Mac)
+        param = "-n" if platform.system().lower() == "windows" else "-c"
+        
+        # Costruiamo il comando come una lista per evitare errori di shell
+        command = ["ping", param, str(count), ip]
+        
+        try:
+            # shell=True aiuta Python a trovare il comando 'ping' nelle variabili d'ambiente di Windows
+            processo = subprocess.run(command, capture_output=True, text=True, shell=True)
+            
+            if processo.returncode == 0:
+                print(f"[+] Risposta ricevuta da {ip}:")
+                # Estraiamo solo le righe con i tempi (ms) per pulire l'output
+                linee = processo.stdout.splitlines()
+                for linea in linee:
+                    if "ms" in linea.lower():
+                        print(f"    {linea.strip()}")
+                return True
+            else:
+                print(f"[!] L'host {ip} non risponde (Richiesta scaduta).")
+                return False
+                
+        except Exception as e:
+            print(f"[!] Errore tecnico durante il ping: {e}")
+            return False
+
+    
+        """Scrive qualsiasi tipo di evento nel log con Categoria e Timestamp"""
+        timestamp = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        log_entry = f"[{category}] {timestamp}\n{message}\n" + "-"*40 + "\n"
+        
+        try:
+            with open("network_events.log", "a", encoding="utf-8") as f:
+                f.write(log_entry)
+        except Exception as e:
+            print(f"[!] Errore salvataggio log: {e}")
+
+    def run_speedtest(self):
+        print("[*] Avvio Speed Test (potrebbe richiedere un minuto)...")
+        try:
+            # Aggiungiamo secure=True per evitare blocchi HTTP
+            st = speedtest.Speedtest(secure=True) 
+            st.get_best_server()
+            
+            download = st.download() / 1_000_000  # Mbps
+            upload = st.upload() / 1_000_000      # Mbps
+            ping = st.results.ping
+
+            print(f"\n[+] RISULTATI:")
+            print(f" > Download: {download:.2f} Mbps")
+            print(f" > Upload: {upload:.2f} Mbps")
+            print(f" > Ping: {ping} ms")
+
+        except Exception as e:
+            print(f"[!] Errore durante lo Speedtest: {e}")
+            print("[i] Consiglio: Prova a fare 'pip install --upgrade speedtest-cli'")
+
+    def detect_arp_spoofing(self):
+        print("\n" + "!"*10 + " SECURITY CHECK: ARP SPOOFING " + "!"*10)
+        
+        hosts = self.nm.all_hosts()
+        mac_database = {} # Dizionario {MAC: IP}
+        alerts_found = False
+
+        for ip in hosts:
+            if 'addresses' in self.nm[ip] and 'mac' in self.nm[ip]['addresses']:
+                mac = self.nm[ip]['addresses']['mac']
+                
+                # Se il MAC è già nel database ma con un IP diverso...
+                if mac in mac_database and mac_database[mac] != ip:
+                    print(f"\n[🚨 ALERT] POSSIBILE ATTACCO MITM RILEVATO!")
+                    print(f" > Il MAC Address [{mac}] è associato a due IP:")
+                    print(f"   1. {mac_database[mac]}")
+                    print(f"   2. {ip}")
+                    print(f" [!] Qualcuno sta eseguendo ARP Poisoning nella rete.")
+                    alerts_found = True
+                else:
+                    mac_database[mac] = ip
+        
+        if not alerts_found:
+            print("[✓] Nessun conflitto ARP rilevato. La tabella dei MAC è coerente.")
+        
+        print("!"*50)
+        return alerts_found
+    
+    def log_event(self, category, message):
+        """Scrive l'evento sul file e forza la scrittura immediata sul disco"""
+        timestamp = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        log_entry = f"[{category}] {timestamp}\n{message}\n" + "-"*40 + "\n"
+        
+        try:
+            with open(self.log_file, "a", encoding="utf-8") as f:
+                f.write(log_entry)
+                f.flush()
+                os.fsync(f.fileno()) # Forza Windows a mostrare il dato subito
+        except Exception as e:
+            print(f"[!] Errore scrittura log: {e}")
+
+    def live_monitor_worker(self, network_range, interval=10):
+        """Questa funzione gira in background nel thread e scrive sul log"""
+        
+        # 1. Scansione iniziale (Baseline)
+        try:
+            self.nm.scan(hosts=network_range, arguments='-sn -PR')
+            known_devices = {}
+            for host in self.nm.all_hosts():
+                mac = self.nm[host].get('addresses', {}).get('mac', 'N/A')
+                hostname = self.nm[host].hostname() or "Sconosciuto"
+                known_devices[host] = {"mac": mac, "name": hostname}
+
+            self.log_event("SISTEMA", f"Monitoraggio avviato su {network_range}. Dispositivi iniziali: {len(known_devices)}")
+        except Exception as e:
+            self.log_event("ERRORE INIZIALE", f"Impossibile avviare scansione: {e}")
+            return
+
+        # 2. Ciclo infinito di monitoraggio
+        while True:
+            try:
+                time.sleep(interval)
+                self.nm.scan(hosts=network_range, arguments='-sn -PR')
+                current_hosts = self.nm.all_hosts()
+
+                # Controllo Nuovi (🟢 ONLINE)
+                for ip in current_hosts:
+                    if ip not in known_devices:
+                        mac = self.nm[ip].get('addresses', {}).get('mac', 'N/A')
+                        hostname = self.nm[ip].hostname() or "Sconosciuto"
+                        vendor = self.nm[ip].get('vendor', {}).get(mac, "Generico")
+                        
+                        msg = f" > IP: {ip}\n > MAC: {mac}\n > Host: {hostname}\n > Vendor: {vendor}"
+                        self.log_event("🟢 ONLINE", msg)
+                        known_devices[ip] = {"mac": mac, "name": hostname}
+
+                # Controllo Spariti (🔴 OFFLINE)
+                to_remove = []
+                for ip, info in known_devices.items():
+                    if ip not in current_hosts:
+                        msg = f" > IP: {ip}\n > MAC: {info['mac']}\n > Host: {info['name']}"
+                        self.log_event("🔴 OFFLINE", msg)
+                        to_remove.append(ip)
+                
+                for ip in to_remove:
+                    del known_devices[ip]
+                    
+            except Exception as e:
+                self.log_event("ERRORE MONITOR", str(e))
+                time.sleep(5) # Evita loop infiniti di errori veloci
