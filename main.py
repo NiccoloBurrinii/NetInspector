@@ -40,9 +40,7 @@ def main():
             print("3. Scansione Porte (Service Detection)")
             print("4. Speed Test (Internet Performance)")
             print("5. Monitoraggio Host (Real-time)")
-            print("6. Monitoraggio Traffico)")
-            print("7. Genera Report Finale (da implementare)")
-            print("8. Security Check (ARP Spoofing Detector)")
+            print("6. Security Check (ARP Spoofing Detector)")
             print("0. Esci")
             
             choice = input("\nScegli un'opzione: ")
@@ -61,8 +59,6 @@ def main():
                 ip = input("Inserisci l'IP da monitorare: ")
                 inspector.monitor_host(ip)
             elif choice == '6':
-                inspector.live_network_monitor(NETWORK_RANGE, interval=5)    
-            elif choice == '8':
                 inspector.detect_arp_spoofing()
             elif choice == '0':
                 print("Chiusura...")
@@ -73,10 +69,9 @@ def main():
         print("\n[!] Interruzione rilevata.")
     
     finally:
-        # --- QUESTA È LA PARTE CHE VOLEVI ---
         print("[*] Salvataggio stato finale nel log...")
         inspector.log_event("SISTEMA", "--- LOG TERMINATO / MONITORAGGIO CHIUSO ---")
-        time.sleep(1) # Diamo il tempo al log di scrivere fisicamente
+        time.sleep(1)
 
 if __name__ == "__main__":
     main()
