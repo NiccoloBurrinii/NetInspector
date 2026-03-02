@@ -11,6 +11,7 @@ class NetInspector:
         try:
             # Inizializza il PortScanner di Nmap
             self.nm = nmap.PortScanner()
+            self.log_file = "network_events.log"
             print("[*] Motore Nmap inizializzato con successo.")
         except Exception as e:
             print(f"[!] Errore inizializzazione Nmap: {e}")
@@ -78,8 +79,6 @@ class NetInspector:
                 
                 print(f"{port:<8} | {state:<10} | {service:<15} | {full_version}")
 
-            res_log = f" > Target: {ip}\n > Risultato: Scansione porte completata."
-            self.log_event("PORT SCAN", res_log)
 
         print("\n[*] Analisi completata.")
 
@@ -129,7 +128,7 @@ class NetInspector:
             print(f"[!] Errore tecnico durante il ping: {e}")
             return False
 
-    def log_event(self, category, message):
+    
         """Scrive qualsiasi tipo di evento nel log con Categoria e Timestamp"""
         timestamp = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
         log_entry = f"[{category}] {timestamp}\n{message}\n" + "-"*40 + "\n"
@@ -142,20 +141,23 @@ class NetInspector:
 
     def run_speedtest(self):
         print("[*] Avvio Speed Test (potrebbe richiedere un minuto)...")
-        st = speedtest.Speedtest()
-        st.get_best_server()
-        
-        download = st.download() / 1_000_000  # Mbps
-        upload = st.upload() / 1_000_000      # Mbps
-        ping = st.results.ping
+        try:
+            # Aggiungiamo secure=True per evitare blocchi HTTP
+            st = speedtest.Speedtest(secure=True) 
+            st.get_best_server()
+            
+            download = st.download() / 1_000_000  # Mbps
+            upload = st.upload() / 1_000_000      # Mbps
+            ping = st.results.ping
 
-        speed_log = f" > Download: {download:.2f} Mbps\n > Upload: {upload:.2f} Mbps\n > Ping: {ping} ms"
-        self.log_event("SPEED TEST", speed_log)
-        
-        print(f"\n[+] RISULTATI:")
-        print(f" > Download: {download:.2f} Mbps")
-        print(f" > Upload: {upload:.2f} Mbps")
-        print(f" > Ping: {ping} ms")
+            print(f"\n[+] RISULTATI:")
+            print(f" > Download: {download:.2f} Mbps")
+            print(f" > Upload: {upload:.2f} Mbps")
+            print(f" > Ping: {ping} ms")
+
+        except Exception as e:
+            print(f"[!] Errore durante lo Speedtest: {e}")
+            print("[i] Consiglio: Prova a fare 'pip install --upgrade speedtest-cli'")
 
     def detect_arp_spoofing(self):
         print("\n" + "!"*10 + " SECURITY CHECK: ARP SPOOFING " + "!"*10)
@@ -182,49 +184,68 @@ class NetInspector:
         if not alerts_found:
             print("[✓] Nessun conflitto ARP rilevato. La tabella dei MAC è coerente.")
         
-        mitm_log = f"🚨 ATTENZIONE: Rilevato conflitto MAC su {mac}!\n > IP coinvolti: {ip1}, {ip2}"
-        self.log_event("SECURITY ALERT", mitm_log)
-
         print("!"*50)
         return alerts_found
     
-    def live_network_monitor(self, network_range, interval=15):
-        """Funzione che gira in background e logga tutto"""
-        # Baseline iniziale
-        self.nm.scan(hosts=network_range, arguments='-sn -PR')
-        known_devices = {host: (self.nm[host].hostname() or "Sconosciuto") 
-                         for host in self.nm.all_hosts()}
-
+    def log_event(self, category, message):
+        """Scrive l'evento sul file e forza la scrittura immediata sul disco"""
+        timestamp = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        log_entry = f"[{category}] {timestamp}\n{message}\n" + "-"*40 + "\n"
+        
         try:
-            while True:
+            with open(self.log_file, "a", encoding="utf-8") as f:
+                f.write(log_entry)
+                f.flush()
+                os.fsync(f.fileno()) # Forza Windows a mostrare il dato subito
+        except Exception as e:
+            print(f"[!] Errore scrittura log: {e}")
+
+    def live_monitor_worker(self, network_range, interval=10):
+        """Questa funzione gira in background nel thread e scrive sul log"""
+        
+        # 1. Scansione iniziale (Baseline)
+        try:
+            self.nm.scan(hosts=network_range, arguments='-sn -PR')
+            known_devices = {}
+            for host in self.nm.all_hosts():
+                mac = self.nm[host].get('addresses', {}).get('mac', 'N/A')
+                hostname = self.nm[host].hostname() or "Sconosciuto"
+                known_devices[host] = {"mac": mac, "name": hostname}
+
+            self.log_event("SISTEMA", f"Monitoraggio avviato su {network_range}. Dispositivi iniziali: {len(known_devices)}")
+        except Exception as e:
+            self.log_event("ERRORE INIZIALE", f"Impossibile avviare scansione: {e}")
+            return
+
+        # 2. Ciclo infinito di monitoraggio
+        while True:
+            try:
                 time.sleep(interval)
                 self.nm.scan(hosts=network_range, arguments='-sn -PR')
                 current_hosts = self.nm.all_hosts()
-                
-                # --- LOGICA NUOVI ACCESSI ---
+
+                # Controllo Nuovi (🟢 ONLINE)
                 for ip in current_hosts:
                     if ip not in known_devices:
                         mac = self.nm[ip].get('addresses', {}).get('mac', 'N/A')
                         hostname = self.nm[ip].hostname() or "Sconosciuto"
                         vendor = self.nm[ip].get('vendor', {}).get(mac, "Generico")
                         
-                        event_msg = (f"[🟢 ONLINE] IP: {ip} | MAC: {mac}\n"
-                                     f" > Hostname: {hostname} | Vendor: {vendor}")
-                        
-                        # Scrive nel file senza interrompere il tuo menu
-                        self.log_event("BACKGROUND MONITOR", event_msg)
-                        known_devices[ip] = hostname
+                        msg = f" > IP: {ip}\n > MAC: {mac}\n > Host: {hostname}\n > Vendor: {vendor}"
+                        self.log_event("🟢 ONLINE", msg)
+                        known_devices[ip] = {"mac": mac, "name": hostname}
 
-                # --- LOGICA DISCONNESSIONI ---
+                # Controllo Spariti (🔴 OFFLINE)
                 to_remove = []
-                for ip, name in known_devices.items():
+                for ip, info in known_devices.items():
                     if ip not in current_hosts:
-                        event_msg = f"[🔴 OFFLINE] IP: {ip} ({name}) è uscito dalla rete."
-                        self.log_event("BACKGROUND MONITOR", event_msg)
+                        msg = f" > IP: {ip}\n > MAC: {info['mac']}\n > Host: {info['name']}"
+                        self.log_event("🔴 OFFLINE", msg)
                         to_remove.append(ip)
                 
                 for ip in to_remove:
                     del known_devices[ip]
-
-        except Exception as e:
-            self.log_event("ERRORE MONITOR", str(e))
+                    
+            except Exception as e:
+                self.log_event("ERRORE MONITOR", str(e))
+                time.sleep(5) # Evita loop infiniti di errori veloci
