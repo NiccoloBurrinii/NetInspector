@@ -1,7 +1,6 @@
 import os
 import threading
 import time
-
 from core import NetInspector
 from config import NETWORK_RANGE
 
@@ -22,7 +21,7 @@ def main():
     
     monitor_thread = threading.Thread(
         target=inspector.live_monitor_worker, 
-        args=(NETWORK_RANGE, 10), 
+        args=(NETWORK_RANGE, 5), 
         daemon=True
     )
     monitor_thread.start()
@@ -32,44 +31,22 @@ def main():
         print("[*] Controlla la finestra PowerShell esterna per i log live.")
         
         while True:
-            print("\n" + "="*30)
-            print("      NETINSPECTOR      ")
-            print("="*30)
-            print("1. Scansione Rete")
-            print("2. Ping Test")
-            print("3. Scansione Porte")
-            print("4. Speed Test")
-            print("5. Monitoraggio Host (Real-time)")
-            print("6. Security Check (ARP Spoofing Detector)")
-            print("0. Esci")
+            print("\n" + "="*30 + "\n      NETINSPECTOR      \n" + "="*30)
+            print("1. Scansione Rete\n2. Ping Test\n3. Scansione Porte\n4. Speed Test\n5. Monitoraggio Host (Real-time)\n6. Security Check (ARP Spoofing Detector)\n0. Esci")
             
             choice = input("\nScegli un'opzione: ")
             
-            if choice == '1':
-                inspector.scan_network(NETWORK_RANGE)
-            elif choice == '2':
-                ip = input("Inserisci l'IP da testare: ")
-                inspector.ping_test(ip)
-            elif choice == '3':
-                ip = input("Inserisci IP per analisi porte: ")
-                inspector.scan_ports(ip)
-            elif choice == '4':
-                inspector.run_speedtest()
-            elif choice == '5':
-                ip = input("Inserisci l'IP da monitorare: ")
-                inspector.monitor_host(ip)
-            elif choice == '6':
-                inspector.detect_arp_spoofing()
-            elif choice == '0':
-                print("Chiusura...")
-                break
-            else:
-                print("Scelta non valida.")
-    except KeyboardInterrupt:
-        print("\n[!] Interruzione rilevata.")
+            if choice == '1': inspector.scan_network(NETWORK_RANGE)
+            elif choice == '2': inspector.ping_test(input("IP: "))
+            elif choice == '3': inspector.scan_ports(input("IP: "))
+            elif choice == '4': inspector.run_speedtest()
+            elif choice == '5': inspector.monitor_host(input("IP: "))
+            elif choice == '6': inspector.detect_arp_spoofing()
+            elif choice == '0': break
+            else: print("Scelta non valida.")
+    except KeyboardInterrupt: pass
     
     finally:
-        print("[*] Salvataggio stato finale nel log...")
         inspector.log_event("SISTEMA", "--- LOG TERMINATO / MONITORAGGIO CHIUSO ---")
         time.sleep(1)
 
