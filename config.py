@@ -3,20 +3,25 @@ import ipaddress
 import socket
 
 def get_real_network_range():
+    """
+    Rileva dinamicamente la configurazione di rete locale.
+    Evita di dover cablare a mano l'IP nel codice.
+    """
     try:
-        # 1. Troviamo l'IP che il PC usa per andare su internet
+        # Crea un socket UDP per determinare l'interfaccia di rete attiva
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # Non invia dati, serve solo a interrogare la tabella di routing del sistema
         s.connect(("8.8.8.8", 80))
         local_ip = s.getsockname()[0]
         s.close()
 
-        # 2. Cerchiamo la netmask associata a quell'IP tra tutte le schede di rete
+        # Itera sulle interfacce di rete per trovare la Netmask associata all'IP locale
         addrs = psutil.net_if_addrs()
         for interface_name, interface_addresses in addrs.items():
             for addr in interface_addresses:
                 if addr.family == socket.AF_INET and addr.address == local_ip:
                     netmask = addr.netmask
-                    # Creiamo il network reale (es. 172.20.10.0/28)
+                    # Calcola il network range in formato CIDR (es. 192.168.1.0/24)
                     network = ipaddress.IPv4Network(f"{local_ip}/{netmask}", strict=False)
                     return str(network)
         
@@ -25,6 +30,5 @@ def get_real_network_range():
         print(f"[!] Errore rilevamento rete: {e}")
         return "127.0.0.1/32"
 
-# Ora NETWORK_RANGE è dinamico e preciso al 100%
 NETWORK_RANGE = get_real_network_range()
 

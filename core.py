@@ -13,13 +13,14 @@ class NetInspector:
             # Inizializza il PortScanner di Nmap
             self.nm = nmap.PortScanner()
             self.log_file = "network_events.log"
+            # Lock per rendere il logging Thread-Safe (previene conflitti di scrittura)
             self.lock = threading.Lock()
             print("[*] Motore Nmap inizializzato con successo.")
         except Exception as e:
             print(f"[!] Errore inizializzazione Nmap: {e}")
 
     def log_event(self, category, message):
-        """Scrive l'evento sul file e forza la scrittura immediata sul disco"""
+        """Scrive eventi nel log con persistenza garantita (Anti-Corruption)"""
         timestamp = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
         log_entry = f"[{category}] {timestamp}\n{message}\n" + "-"*40 + "\n"
         
@@ -27,15 +28,15 @@ class NetInspector:
             try:
                 with open(self.log_file, "a", encoding="utf-8") as f:
                     f.write(log_entry)
-                    f.flush()
-                    os.fsync(f.fileno()) 
+                    f.flush() # Svuota il buffer di Python
+                    os.fsync(f.fileno()) # Forza la scrittura fisica sul disco (Kernel level)
             except Exception as e:
                 print(f"[!] Errore scrittura log: {e}")
 
     def scan_network(self, network_range):
         print(f"[*] Scansione della rete {network_range} in corso...")
         self.nm.scan(hosts=network_range, arguments='-sn -PR')
-        
+        # -sn: No port scan (veloce) | -PR: ARP discovery (efficace in LAN)
         print(f"\n{'IP':<15} | {'HOSTNAME':<20} | {'MAC ADDRESS':<18} | {'VENDOR'}")
         print("-" * 75)
 
@@ -124,7 +125,8 @@ class NetInspector:
         except KeyboardInterrupt:
             print("\n[*] Monitoraggio terminato.")
 
-    def run_speedtestt(self):   #
+    def run_speedtestt(self):
+        """Esegue benchmark banda"""
         print("\n[*] Preparazione Speed Test in corso...")
         try:
             st = speedtest.Speedtest(secure=True)
@@ -157,7 +159,7 @@ class NetInspector:
         import sys
 
         def draw_progress_bar(percent, label=""):
-            """Disegna una barra di caricamento professionale in console"""
+            """Esegue benchmark banda con barra di progressione simulata"""
             bar_length = 30
             filled_length = int(round(bar_length * percent / 100))
             bar = '█' * filled_length + '-' * (bar_length - filled_length)
@@ -235,12 +237,13 @@ class NetInspector:
         return alerts_found
 
     def live_monitor_worker(self, network_range, interval=10):
-        """Questa funzione gira in background nel thread e scrive sul log"""
-        
-        # 1. Scansione iniziale (Baseline)
+        """Thread worker per il monitoraggio IDS passivo"""
         try:
+            # Scansione ottimizzata: -n disabilita DNS inverso per massima velocità
             self.nm.scan(hosts=network_range, arguments='-sn -PR')
             known_devices = {}
+            
+            # Prende informazioni dei dispositivi attivi all'avvio del monitoraggio
             for host in self.nm.all_hosts():
                 mac = self.nm[host].get('addresses', {}).get('mac', 'N/A')
                 hostname = self.nm[host].hostname() or "Sconosciuto"
@@ -254,9 +257,11 @@ class NetInspector:
         while True:
             try:
                 time.sleep(interval)
+                # Scansione ottimizzata: -n disabilita DNS inverso per massima velocità 
                 self.nm.scan(hosts=network_range, arguments='-sn -PR')
                 current_hosts = self.nm.all_hosts()
 
+                # Confronto stato precedente vs attuale per rilevare nuovi accessi o disconnessioni
                 for ip in current_hosts:
                     if ip not in known_devices:
                         mac = self.nm[ip].get('addresses', {}).get('mac', 'N/A')

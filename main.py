@@ -5,20 +5,21 @@ from core import NetInspector
 from config import NETWORK_RANGE
 
 def main():
+    # Inizializzazione NetInspector e rilevamento rete
     inspector = NetInspector()
     print(f"[*] Rete rilevata: {NETWORK_RANGE}")
 
-    # 1. Inizializzazione Log
+    # Apre il log in una finestra PowerShell separata
     if not os.path.exists("network_events.log"):
         with open("network_events.log", "w") as f:
             f.write("--- LOG INIZIALIZZATO ---\n")
     else:
-        # Se il file esiste già, aggiungiamo una riga di separazione per la nuova sessione
         inspector.log_event("SISTEMA", ">>> NUOVA SESSIONE AVVIATA <<<")
 
-    # 2. Avvio finestra esterna e Thread (come prima)
+    # Comando di sistema per lanciare PowerShell con 'Wait' (dashboard live)
     os.system('start powershell.exe -NoExit -Command "Get-Content network_events.log -Wait"')
     
+    # Lancio del monitor in background come DAEMON thread
     monitor_thread = threading.Thread(
         target=inspector.live_monitor_worker, 
         args=(NETWORK_RANGE, 5), 
