@@ -1,4 +1,5 @@
 import os
+import platform
 import threading
 import time
 from core import NetInspector
@@ -17,8 +18,15 @@ def main():
         inspector.log_event("SISTEMA", ">>> NUOVA SESSIONE AVVIATA <<<")
 
     # Comando di sistema per lanciare PowerShell con 'Wait' (dashboard live)
-    os.system('start powershell.exe -NoExit -Command "Get-Content network_events.log -Wait"')
-    
+    #os.system('start powershell.exe -NoExit -Command "Get-Content network_events.log -Wait"')
+    sistema = platform.system().lower()
+
+    if sistema == "windows":
+        os.system(f'start powershell.exe -NoExit -Command "Get-Content {"network_events.log"} -Wait"')
+    elif sistema == "linux":
+        # Prova ad aprire il terminale Gnome (comune su Ubuntu/Kali)
+        os.system(f'gnome-terminal -- bash -c "tail -f {"network_events.log"}"; exec bash" &')
+
     # Lancio del monitor in background come DAEMON thread
     monitor_thread = threading.Thread(
         target=inspector.live_monitor_worker, 
